@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useData } from '../contexts/DataContext';
 import { useStore } from '../contexts/StoreContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -21,13 +21,33 @@ import {
   Minus
 } from 'lucide-react';
 
+// --- NUEVO: estilos impresión ---
+const usePrintStyles = () => {
+  React.useEffect(() => {
+    const style = document.createElement('style');
+    style.innerHTML = `
+      @media print {
+        body * { visibility: hidden !important; }
+        #quote-print, #quote-print * { visibility: visible !important; }
+        #quote-print { position: absolute; left: 0; top: 0; width: 90vw !important; background: white; font-size: 13px; line-height: 1.4; }
+        .no-print { display: none !important; }
+      }
+    `;
+    document.head.appendChild(style);
+    return () => { document.head.removeChild(style); };
+  }, []);
+};
+
 export function Quotes() {
+  usePrintStyles(); // --- Aplica estilos impresión ---
+
   const { products, quotes, customers, addQuote, updateQuote } = useData();
   const { currentStore } = useStore();
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingQuote, setEditingQuote] = useState<Quote | null>(null);
   const [viewingQuote, setViewingQuote] = useState<Quote | null>(null);
 
   const storeProducts = products.filter(p => p.storeId === currentStore?.id);
@@ -38,9 +58,7 @@ export function Quotes() {
     const customer = storeCustomers.find(c => c.id === quote.customerId);
     const matchesSearch = customer?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          quote.id.toLowerCase().includes(searchTerm.toLowerCase());
-    
     const matchesStatus = statusFilter === 'all' || quote.status === statusFilter;
-    
     return matchesSearch && matchesStatus;
   });
 
@@ -72,30 +90,48 @@ export function Quotes() {
     }
   };
 
-  const CreateQuoteModal = ({ onClose, onSave }: {
+  // MODAL CREAR/EDITAR
+  const CreateQuoteModal = ({ onClose, onSave, quote }: {
     onClose: () => void;
     onSave: (quote: Quote) => void;
+    quote?: Quote;
   }) => {
-    const [selectedCustomerId, setSelectedCustomerId] = useState('');
-    const [cart, setCart] = useState<SaleItem[]>([]);
-    const [discount, setDiscount] = useState(0);
-    const [shippingCost, setShippingCost] = useState(0);
-    const [validDays, setValidDays] = useState(30);
+    // Si es edición, precarga datos
+    const [selectedCustomerId, setSelectedCustomerId] = useState(quote?.customerId || '');
+    const [cart, setCart] = useState<SaleItem[]>(quote?.items || []);
+    const [discount, setDiscount] = useState(quote?.discount || 0);
+    const [shippingCost, setShippingCost] = useState(quote?.shippingCost || 0);
+    const [validDays, setValidDays] = useState(
+      quote ? Math.max(1, Math.ceil((new Date(quote.validUntil).getTime() - new Date().getTime()) / (24 * 3600 * 1000))) : 30
+    );
     const [selectedProduct, setSelectedProduct] = useState('');
+    // NUEVO: estado para precio personalizado
+    const [customPrice, setCustomPrice] = useState<number | ''>('');
+
+    useEffect(() => {
+      // Cuando selecciona producto, precarga el precio
+      if (selectedProduct) {
+        const prod = storeProducts.find(p => p.id === selectedProduct);
+        setCustomPrice(prod ? prod.price : '');
+      } else {
+        setCustomPrice('');
+      }
+    }, [selectedProduct]);
 
     const subtotal = cart.reduce((sum, item) => sum + item.total, 0);
     const total = subtotal - discount + shippingCost;
 
+    // MODIFICADO: permite precio personalizado
     const addToCart = (productId: string) => {
       const product = storeProducts.find(p => p.id === productId);
-      if (!product) return;
+      if (!product || customPrice === '' || Number(customPrice) <= 0) return;
 
+      const price = Number(customPrice);
       const existingItem = cart.find(item => item.productId === productId);
-      
       if (existingItem) {
         setCart(prev => prev.map(item =>
           item.productId === productId
-            ? { ...item, quantity: item.quantity + 1, total: (item.quantity + 1) * item.unitPrice }
+            ? { ...item, quantity: item.quantity + 1, unitPrice: price, total: (item.quantity + 1) * price }
             : item
         ));
       } else {
@@ -103,12 +139,13 @@ export function Quotes() {
           productId: product.id,
           productName: product.name,
           quantity: 1,
-          unitPrice: product.price,
-          total: product.price
+          unitPrice: price,
+          total: price
         };
         setCart(prev => [...prev, newItem]);
       }
       setSelectedProduct('');
+      setCustomPrice('');
     };
 
     const updateQuantity = (productId: string, newQuantity: number) => {
@@ -116,7 +153,6 @@ export function Quotes() {
         setCart(prev => prev.filter(item => item.productId !== productId));
         return;
       }
-
       setCart(prev => prev.map(item =>
         item.productId === productId
           ? { ...item, quantity: newQuantity, total: newQuantity * item.unitPrice }
@@ -126,18 +162,16 @@ export function Quotes() {
 
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
-      
       if (!selectedCustomerId || cart.length === 0) {
         alert('Selecciona un cliente y agrega productos');
         return;
       }
-
       const validUntil = new Date();
       validUntil.setDate(validUntil.getDate() + validDays);
 
       const newQuote: Quote = {
-        id: Date.now().toString(),
-        storeId: currentStore?.id || '1',
+        id: quote?.id || Date.now().toString(),
+        storeId: quote?.storeId || currentStore?.id || '1',
         customerId: selectedCustomerId,
         items: cart,
         subtotal,
@@ -145,9 +179,9 @@ export function Quotes() {
         shippingCost,
         total,
         validUntil,
-        status: 'pending',
-        createdAt: new Date(),
-        employeeId: user?.id || '1'
+        status: quote?.status || 'pending',
+        createdAt: quote?.createdAt || new Date(),
+        employeeId: quote?.employeeId || user?.id || '1'
       };
 
       onSave(newQuote);
@@ -159,12 +193,11 @@ export function Quotes() {
         <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-auto">
           <div className="p-6">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-gray-900">Nueva Cotización</h3>
+              <h3 className="text-xl font-bold text-gray-900">{quote ? 'Editar Cotización' : 'Nueva Cotización'}</h3>
               <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
                 <X className="w-6 h-6" />
               </button>
             </div>
-
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -183,7 +216,6 @@ export function Quotes() {
                     ))}
                   </select>
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Válida por (días)
@@ -198,7 +230,6 @@ export function Quotes() {
                   />
                 </div>
               </div>
-
               {/* Add Products */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -217,17 +248,27 @@ export function Quotes() {
                       </option>
                     ))}
                   </select>
+                  {/* NUEVO: campo para editar precio */}
+                  {selectedProduct && (
+                    <input
+                      type="number"
+                      value={customPrice}
+                      min="1"
+                      onChange={e => setCustomPrice(Number(e.target.value))}
+                      className="w-24 px-2 py-2 border border-gray-300 rounded-lg text-sm"
+                      placeholder="Precio"
+                    />
+                  )}
                   <button
                     type="button"
                     onClick={() => selectedProduct && addToCart(selectedProduct)}
-                    disabled={!selectedProduct}
+                    disabled={!selectedProduct || customPrice === '' || Number(customPrice) <= 0}
                     className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 transition-colors"
                   >
                     <Plus className="w-5 h-5" />
                   </button>
                 </div>
               </div>
-
               {/* Cart Items */}
               {cart.length > 0 && (
                 <div className="border border-gray-200 rounded-lg p-4">
@@ -264,7 +305,6 @@ export function Quotes() {
                   </div>
                 </div>
               )}
-
               {/* Totals */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
@@ -279,7 +319,6 @@ export function Quotes() {
                     min="0"
                   />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Costo de Envío
@@ -292,7 +331,6 @@ export function Quotes() {
                     min="0"
                   />
                 </div>
-
                 <div className="flex items-end">
                   <div className="w-full">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -304,7 +342,6 @@ export function Quotes() {
                   </div>
                 </div>
               </div>
-
               <div className="flex space-x-3 pt-4">
                 <button
                   type="button"
@@ -317,7 +354,7 @@ export function Quotes() {
                   type="submit"
                   className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors"
                 >
-                  Crear Cotización
+                  {quote ? 'Actualizar Cotización' : 'Crear Cotización'}
                 </button>
               </div>
             </form>
@@ -327,6 +364,7 @@ export function Quotes() {
     );
   };
 
+  // MODAL VER
   const ViewQuoteModal = ({ quote, onClose }: {
     quote: Quote;
     onClose: () => void;
@@ -339,19 +377,23 @@ export function Quotes() {
       onClose();
     };
 
+    // --- imprimir cotización ---
+    const handlePrint = () => {
+      window.print();
+    };
+
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-auto">
+        <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-auto" id="quote-print">
           <div className="p-6">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-gray-900">Cotización #{quote.id}</h3>
-              <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+              <button onClick={onClose} className="text-gray-500 hover:text-gray-700 no-print">
                 <X className="w-6 h-6" />
               </button>
             </div>
-
             <div className="space-y-6">
-              {/* Quote Info */}
+              {/* Info Cotización */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-gray-500">Cliente</p>
@@ -374,8 +416,7 @@ export function Quotes() {
                   </p>
                 </div>
               </div>
-
-              {/* Items */}
+              {/* Productos */}
               <div>
                 <h4 className="font-medium text-gray-900 mb-3">Productos</h4>
                 <div className="space-y-2">
@@ -390,8 +431,7 @@ export function Quotes() {
                   ))}
                 </div>
               </div>
-
-              {/* Totals */}
+              {/* Totales */}
               <div className="bg-gray-50 p-4 rounded-lg space-y-2">
                 <div className="flex justify-between text-sm">
                   <span>Subtotal:</span>
@@ -414,10 +454,16 @@ export function Quotes() {
                   <span>{formatCurrency(quote.total)}</span>
                 </div>
               </div>
-
-              {/* Actions */}
+              {/* BOTÓN IMPRIMIR */}
+              <button
+                onClick={handlePrint}
+                className="w-full bg-blue-600 text-white py-2 mt-4 rounded-lg hover:bg-blue-700 transition-colors no-print"
+              >
+                Imprimir Cotización
+              </button>
+              {/* Acciones aceptar/rechazar */}
               {quote.status === 'pending' && !isExpired && (
-                <div className="flex space-x-3">
+                <div className="flex space-x-3 no-print">
                   <button
                     onClick={() => updateStatus('accepted')}
                     className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center space-x-2"
@@ -441,6 +487,7 @@ export function Quotes() {
     );
   };
 
+  // TABLA COTIZACIONES
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -457,7 +504,6 @@ export function Quotes() {
           <span>Nueva Cotización</span>
         </button>
       </div>
-
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
@@ -469,7 +515,6 @@ export function Quotes() {
             </div>
           </div>
         </div>
-        
         <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
           <div className="flex items-center">
             <Clock className="w-8 h-8 text-yellow-600 mr-3" />
@@ -481,7 +526,6 @@ export function Quotes() {
             </div>
           </div>
         </div>
-
         <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
           <div className="flex items-center">
             <Check className="w-8 h-8 text-green-600 mr-3" />
@@ -493,7 +537,6 @@ export function Quotes() {
             </div>
           </div>
         </div>
-
         <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
           <div className="flex items-center">
             <DollarSign className="w-8 h-8 text-purple-600 mr-3" />
@@ -506,7 +549,6 @@ export function Quotes() {
           </div>
         </div>
       </div>
-
       {/* Filters */}
       <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
         <div className="flex flex-wrap gap-4">
@@ -522,7 +564,6 @@ export function Quotes() {
               />
             </div>
           </div>
-
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -536,7 +577,6 @@ export function Quotes() {
           </select>
         </div>
       </div>
-
       {/* Quotes List */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
@@ -567,7 +607,6 @@ export function Quotes() {
               {filteredQuotes.map(quote => {
                 const customer = storeCustomers.find(c => c.id === quote.customerId);
                 const isExpired = new Date() > new Date(quote.validUntil);
-                
                 return (
                   <tr key={quote.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -598,9 +637,16 @@ export function Quotes() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button
                         onClick={() => setViewingQuote(quote)}
-                        className="text-blue-600 hover:text-blue-900"
+                        className="text-blue-600 hover:text-blue-900 mr-2"
                       >
                         <Eye className="w-4 h-4" />
+                      </button>
+                      {/* --- Botón editar para TODOS los usuarios --- */}
+                      <button
+                        onClick={() => setEditingQuote(quote)}
+                        className="text-green-600 hover:text-green-900"
+                      >
+                        <Edit3 className="w-4 h-4" />
                       </button>
                     </td>
                   </tr>
@@ -609,7 +655,6 @@ export function Quotes() {
             </tbody>
           </table>
         </div>
-
         {filteredQuotes.length === 0 && (
           <div className="text-center py-12">
             <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
@@ -617,7 +662,6 @@ export function Quotes() {
           </div>
         )}
       </div>
-
       {/* Modals */}
       {showCreateModal && (
         <CreateQuoteModal
@@ -625,7 +669,13 @@ export function Quotes() {
           onSave={(quote) => addQuote(quote)}
         />
       )}
-
+      {editingQuote && (
+        <CreateQuoteModal
+          quote={editingQuote}
+          onClose={() => setEditingQuote(null)}
+          onSave={(quote) => updateQuote(quote)}
+        />
+      )}
       {viewingQuote && (
         <ViewQuoteModal
           quote={viewingQuote}
