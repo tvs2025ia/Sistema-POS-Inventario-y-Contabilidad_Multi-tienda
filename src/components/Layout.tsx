@@ -34,6 +34,7 @@ export function Layout({ children, currentPage, onPageChange }: LayoutProps) {
   const navigation = [
     { name: 'Dashboard', id: 'dashboard', icon: Home, admin: false },
     { name: 'Punto de Venta', id: 'pos', icon: ShoppingCart, admin: false },
+    { name: 'Registro de Ventas', id: 'sales', icon: FileText, admin: false },
     { name: 'Inventario', id: 'inventory', icon: Package, admin: false },
     { name: 'Clientes', id: 'customers', icon: Users, admin: false },
     { name: 'Cotizaciones', id: 'quotes', icon: FileText, admin: false },

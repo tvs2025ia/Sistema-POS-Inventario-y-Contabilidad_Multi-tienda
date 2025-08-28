@@ -6,6 +6,7 @@ import { Login } from './components/Login';
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
 import { POS } from './components/POS';
+import { Sales } from './components/Sales';
 import { Inventory } from './components/Inventory';
 import { Customers } from './components/Customers';
 import { Quotes } from './components/Quotes';
@@ -37,6 +38,8 @@ function MainApp() {
         return <Dashboard />;
       case 'pos':
         return <POS />;
+      case 'sales':
+        return <Sales />;
       case 'inventory':
         return <Inventory />;
       case 'customers':
