@@ -23,8 +23,17 @@ export function Expenses() {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
 
-  const storeExpenses = expenses.filter(e => e.storeId === currentStore?.id);
-  
+  // --- CORREGIDO: fuerza date como objeto Date ---
+  const storeExpenses = expenses
+    .filter(e => e.storeId === currentStore?.id)
+    .map(e => ({
+      ...e,
+      date: typeof e.date === 'string' ? new Date(e.date) : e.date
+    }));
+
+  // DEBUG: revisa si hay egresos y sus fechas
+  // console.log('storeExpenses:', storeExpenses);
+
   const filteredExpenses = storeExpenses.filter(expense => {
     const matchesSearch = expense.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          expense.category.toLowerCase().includes(searchTerm.toLowerCase());
@@ -36,8 +45,8 @@ export function Expenses() {
 
   const categories = [...new Set(storeExpenses.map(e => e.category))];
   const thisMonthExpenses = storeExpenses.filter(e => 
-    new Date(e.date).getMonth() === new Date().getMonth() &&
-    new Date(e.date).getFullYear() === new Date().getFullYear()
+    e.date.getMonth() === new Date().getMonth() &&
+    e.date.getFullYear() === new Date().getFullYear()
   );
 
   const formatCurrency = (amount: number) => {
@@ -67,13 +76,14 @@ export function Expenses() {
         return;
       }
 
+      // CORREGIDO: guarda date como objeto Date
       const newExpense: Expense = {
         id: Date.now().toString(),
         storeId: currentStore?.id || '1',
         description: formData.description,
         amount: formData.amount,
         category: formData.category,
-        date: new Date(formData.date),
+        date: new Date(formData.date + 'T00:00:00'), // Fuerza hora local
         employeeId: user?.id || '1'
       };
 
@@ -289,7 +299,9 @@ export function Expenses() {
                     -{formatCurrency(expense.amount)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {new Date(expense.date).toLocaleDateString()}
+                    {expense.date instanceof Date
+                      ? expense.date.toLocaleDateString()
+                      : new Date(expense.date).toLocaleDateString()}
                   </td>
                 </tr>
               ))}
