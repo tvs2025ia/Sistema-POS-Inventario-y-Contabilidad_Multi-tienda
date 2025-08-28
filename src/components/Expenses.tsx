@@ -31,9 +31,6 @@ export function Expenses() {
       date: typeof e.date === 'string' ? new Date(e.date) : e.date
     }));
 
-  // DEBUG: revisa si hay egresos y sus fechas
-  // console.log('storeExpenses:', storeExpenses);
-
   const filteredExpenses = storeExpenses.filter(expense => {
     const matchesSearch = expense.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          expense.category.toLowerCase().includes(searchTerm.toLowerCase());
@@ -57,15 +54,22 @@ export function Expenses() {
     }).format(amount);
   };
 
+  // ---- MODAL DE EGRESO CON HORA Y FECHA ----
   const ExpenseModal = ({ onClose, onSave }: {
     onClose: () => void;
     onSave: (expense: Expense) => void;
   }) => {
+    const now = new Date();
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const initialDate = now.toISOString().split('T')[0];
+    const initialTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
     const [formData, setFormData] = useState({
       description: '',
       amount: 0,
       category: '',
-      date: new Date().toISOString().split('T')[0]
+      date: initialDate,
+      time: initialTime
     });
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -76,14 +80,17 @@ export function Expenses() {
         return;
       }
 
-      // CORREGIDO: guarda date como objeto Date
+      // Construye la fecha con la hora
+      const fullDateString = `${formData.date}T${formData.time}:00`;
+      const expenseDate = new Date(fullDateString);
+
       const newExpense: Expense = {
         id: Date.now().toString(),
         storeId: currentStore?.id || '1',
         description: formData.description,
         amount: formData.amount,
         category: formData.category,
-        date: new Date(formData.date + 'T00:00:00'), // Fuerza hora local
+        date: expenseDate,
         employeeId: user?.id || '1'
       };
 
@@ -146,17 +153,31 @@ export function Expenses() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Fecha *
-                </label>
-                <input
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Fecha *
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.date}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Hora *
+                  </label>
+                  <input
+                    type="time"
+                    value={formData.time}
+                    onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                </div>
               </div>
 
               <div className="flex space-x-3 pt-4">
@@ -282,6 +303,9 @@ export function Expenses() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Fecha
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Hora
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -302,6 +326,11 @@ export function Expenses() {
                     {expense.date instanceof Date
                       ? expense.date.toLocaleDateString()
                       : new Date(expense.date).toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {expense.date instanceof Date
+                      ? expense.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                      : new Date(expense.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </td>
                 </tr>
               ))}
