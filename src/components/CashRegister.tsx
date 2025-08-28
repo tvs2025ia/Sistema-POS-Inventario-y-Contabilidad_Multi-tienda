@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
 import { useStore } from '../contexts/StoreContext';
 import { useAuth } from '../contexts/AuthContext';
-import { CashRegister as CashRegisterType, CashMovement } from '../types';
+import { CashRegister as CashRegisterType, CashMovement, Expense } from '../types';
 import { 
   Calculator, 
   DollarSign, 
@@ -28,6 +28,11 @@ export function CashRegister() {
   const currentRegister = storeRegisters.find(r => r.status === 'open');
   const storeSales = sales.filter(s => s.storeId === currentStore?.id);
   const storeExpenses = expenses.filter(e => e.storeId === currentStore?.id);
+
+  // Filtrar egresos del turno actual
+  const expensesSinceOpen: Expense[] = currentRegister
+    ? storeExpenses.filter(e => new Date(e.date) >= new Date(currentRegister.openedAt))
+    : [];
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CO', {
@@ -57,10 +62,12 @@ export function CashRegister() {
     setOpeningAmount(0);
   };
 
+  // MODIFICADO: Cerrar caja y registrar egresos del turno
   const handleCloseRegister = () => {
     if (!currentRegister) return;
 
-    closeCashRegister(currentRegister.id, closingAmount);
+    // Se pasan los egresos del turno a la función de cierre de caja
+    closeCashRegister(currentRegister.id, closingAmount, expensesSinceOpen);
     setShowCloseModal(false);
     setClosingAmount(0);
   };
@@ -69,8 +76,8 @@ export function CashRegister() {
   const getExpectedAmount = () => {
     if (!currentRegister) return 0;
 
-    const salesSinceOpen = storeSales.filter(s => new Date(s.date) >= currentRegister.openedAt);
-    const expensesSinceOpen = storeExpenses.filter(e => new Date(e.date) >= currentRegister.openedAt);
+    const salesSinceOpen = storeSales.filter(s => new Date(s.date) >= new Date(currentRegister.openedAt));
+    const expensesSinceOpen = storeExpenses.filter(e => new Date(e.date) >= new Date(currentRegister.openedAt));
     
     const salesTotal = salesSinceOpen.reduce((sum, s) => sum + s.total, 0);
     const expensesTotal = expensesSinceOpen.reduce((sum, e) => sum + e.amount, 0);
@@ -141,6 +148,23 @@ export function CashRegister() {
               <p className="text-sm text-green-600">Empleado</p>
               <p className="text-lg font-medium text-green-900">{user?.username}</p>
             </div>
+          </div>
+          {/* Mostrar egresos del turno actual */}
+          <div className="mt-4">
+            <p className="text-sm text-red-600">Egresos en este turno:</p>
+            <ul className="text-sm text-gray-700 ml-2">
+              {expensesSinceOpen.length === 0 && <li>No hay egresos registrados.</li>}
+              {expensesSinceOpen.map(e => (
+                <li key={e.id}>
+                  {e.description}: <strong className="text-red-600">{formatCurrency(e.amount)}</strong> ({new Date(e.date).toLocaleString()})
+                </li>
+              ))}
+            </ul>
+            {expensesSinceOpen.length > 0 && (
+              <div className="mt-2 text-sm text-red-700 font-bold">
+                Total egresos del turno: {formatCurrency(expensesSinceOpen.reduce((sum, e) => sum + e.amount, 0))}
+              </div>
+            )}
           </div>
         </div>
       ) : (
@@ -227,6 +251,9 @@ export function CashRegister() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Diferencia
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Egresos Turno
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -260,6 +287,16 @@ export function CashRegister() {
                         {register.difference > 0 ? '+' : ''}{formatCurrency(register.difference)}
                       </span>
                     ) : '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-bold">
+                    {register.expensesTurno
+                      ? formatCurrency(
+                          Array.isArray(register.expensesTurno)
+                            ? register.expensesTurno.reduce((sum, e) => sum + (e.amount || 0), 0)
+                            : 0
+                        )
+                      : '-'
+                    }
                   </td>
                 </tr>
               ))}
@@ -342,6 +379,12 @@ export function CashRegister() {
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-sm text-gray-600">Esperado:</span>
                   <span className="font-medium">{formatCurrency(getExpectedAmount())}</span>
+                </div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm text-gray-600">Egresos del turno:</span>
+                  <span className="font-medium text-red-600">
+                    {formatCurrency(expensesSinceOpen.reduce((sum, e) => sum + e.amount, 0))}
+                  </span>
                 </div>
               </div>
 
