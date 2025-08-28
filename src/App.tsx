@@ -35,7 +35,7 @@ function MainApp() {
   const renderPage = () => {
     switch (currentPage) {
       case 'dashboard':
-        return <Dashboard />;
+        return <Dashboard onPageChange={setCurrentPage} />;
       case 'pos':
         return <POS />;
       case 'sales':
@@ -57,7 +57,7 @@ function MainApp() {
       case 'admin':
         return <Admin />;
       default:
-        return <Dashboard />;
+        return <Dashboard onPageChange={setCurrentPage} />;
     }
   };
 
