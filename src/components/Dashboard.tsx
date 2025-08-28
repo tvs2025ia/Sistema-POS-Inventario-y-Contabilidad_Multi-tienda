@@ -237,7 +237,7 @@ export function Dashboard({ onPageChange }) {
           </button>
           <button
             className="flex flex-col items-center p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
-            onClick={() => onPageChange('Inventory')}
+            onClick={() => onPageChange('inventory')}
           >
             <Package className="w-8 h-8 text-green-600 mb-2" />
             <span className="text-sm font-medium text-green-900">Inventario</span>
