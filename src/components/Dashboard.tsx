@@ -12,7 +12,7 @@ import {
   Calendar
 } from 'lucide-react';
 
-export function Dashboard() {
+export function Dashboard({ onPageChange }) {
   const { sales, products, customers, expenses } = useData();
   const { currentStore } = useStore();
 
@@ -225,39 +225,39 @@ export function Dashboard() {
       </div>
 
       {/* Quick Actions */}
-<div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-  <h3 className="text-lg font-semibold text-gray-900 mb-4">Acciones Rápidas</h3>
-  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-    <button
-      className="flex flex-col items-center p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
-      onClick={() => onPageChange('pos')}
-    >
-      <ShoppingCart className="w-8 h-8 text-blue-600 mb-2" />
-      <span className="text-sm font-medium text-blue-900">Nueva Venta</span>
-    </button>
-    <button
-      className="flex flex-col items-center p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
-      onClick={() => onPageChange('inventory')}
-    >
-      <Package className="w-8 h-8 text-green-600 mb-2" />
-      <span className="text-sm font-medium text-green-900">Inventario</span>
-    </button>
-    <button
-      className="flex flex-col items-center p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
-      onClick={() => onPageChange('customers')}
-    >
-      <Users className="w-8 h-8 text-purple-600 mb-2" />
-      <span className="text-sm font-medium text-purple-900">Clientes</span>
-    </button>
-    <button
-      className="flex flex-col items-center p-4 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors"
-      onClick={() => onPageChange('stats')}
-    >
-      <TrendingUp className="w-8 h-8 text-orange-600 mb-2" />
-      <span className="text-sm font-medium text-orange-900">Reportes</span>
-    </button>
-  </div>
-</div>
+      <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Acciones Rápidas</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <button
+            className="flex flex-col items-center p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+            onClick={() => onPageChange('pos')}
+          >
+            <ShoppingCart className="w-8 h-8 text-blue-600 mb-2" />
+            <span className="text-sm font-medium text-blue-900">Nueva Venta</span>
+          </button>
+          <button
+            className="flex flex-col items-center p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
+            onClick={() => onPageChange('inventory')}
+          >
+            <Package className="w-8 h-8 text-green-600 mb-2" />
+            <span className="text-sm font-medium text-green-900">Inventario</span>
+          </button>
+          <button
+            className="flex flex-col items-center p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
+            onClick={() => onPageChange('customers')}
+          >
+            <Users className="w-8 h-8 text-purple-600 mb-2" />
+            <span className="text-sm font-medium text-purple-900">Clientes</span>
+          </button>
+          <button
+            className="flex flex-col items-center p-4 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors"
+            onClick={() => onPageChange('stats')}
+          >
+            <TrendingUp className="w-8 h-8 text-orange-600 mb-2" />
+            <span className="text-sm font-medium text-orange-900">Reportes</span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
