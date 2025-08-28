@@ -85,16 +85,24 @@ export function CashRegister() {
     return currentRegister.openingAmount + salesTotal - expensesTotal;
   };
 
+  // --- CORREGIDO: cálculo robusto de ventas y egresos de hoy ---
+  const today = new Date();
   const todaySales = storeSales.filter(s => {
-    const today = new Date();
     const saleDate = new Date(s.date);
-    return saleDate.toDateString() === today.toDateString();
+    return (
+      saleDate.getFullYear() === today.getFullYear() &&
+      saleDate.getMonth() === today.getMonth() &&
+      saleDate.getDate() === today.getDate()
+    );
   });
 
   const todayExpenses = storeExpenses.filter(e => {
-    const today = new Date();
     const expenseDate = new Date(e.date);
-    return expenseDate.toDateString() === today.toDateString();
+    return (
+      expenseDate.getFullYear() === today.getFullYear() &&
+      expenseDate.getMonth() === today.getMonth() &&
+      expenseDate.getDate() === today.getDate()
+    );
   });
 
   const todaySalesTotal = todaySales.reduce((sum, s) => sum + s.total, 0);
