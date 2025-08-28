@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
 import { useStore } from '../contexts/StoreContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -9,13 +9,9 @@ import {
   Plus, 
   Minus, 
   Trash2, 
-  Calculator,
-  CreditCard,
   Truck,
-  Check,
   X,
-  Package,
-  Barcode
+  Package
 } from 'lucide-react';
 
 export function POS() {
@@ -30,8 +26,11 @@ export function POS() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
 
-  // NUEVO: Estado para cliente seleccionado
+  // NUEVO: Estados para pago/impresión
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
+  const [amountReceived, setAmountReceived] = useState<number | ''>('');
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [lastSaleData, setLastSaleData] = useState<Sale | null>(null);
 
   const storeProducts = products.filter(p => p.storeId === currentStore?.id);
   const storeCustomers = customers ? customers.filter(c => c.storeId === currentStore?.id) : [];
@@ -44,10 +43,9 @@ export function POS() {
   const subtotal = cart.reduce((sum, item) => sum + item.total, 0);
   const totalWithDiscount = subtotal - discount;
   const finalTotal = totalWithDiscount + shippingCost;
-  
-  // Calculate payment method deduction (internal, not shown to customer)
   const paymentDeduction = finalTotal * (selectedPaymentMethod.discountPercentage / 100);
   const netTotal = finalTotal - paymentDeduction;
+  const invoiceNumber = `INV-${Date.now()}`;
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CO', {
@@ -59,7 +57,6 @@ export function POS() {
 
   const addToCart = (product: Product) => {
     const existingItem = cart.find(item => item.productId === product.id);
-    
     if (existingItem) {
       if (existingItem.quantity < product.stock) {
         setCart(prev => prev.map(item =>
@@ -85,16 +82,13 @@ export function POS() {
   const updateQuantity = (productId: string, newQuantity: number) => {
     const product = products.find(p => p.id === productId);
     if (!product) return;
-
     if (newQuantity <= 0) {
       removeFromCart(productId);
       return;
     }
-
     if (newQuantity > product.stock) {
-      return; // Don't allow more than available stock
+      return;
     }
-
     setCart(prev => prev.map(item =>
       item.productId === productId
         ? { ...item, quantity: newQuantity, total: newQuantity * item.unitPrice }
@@ -111,48 +105,72 @@ export function POS() {
     setDiscount(0);
     setShippingCost(0);
     setSelectedCustomerId('');
+    setAmountReceived('');
+    setLastSaleData(null);
   };
 
-  const processSale = async () => {
-    if (cart.length === 0 || !user || !currentStore) return;
-
+  // Procesa venta, pero solo después de imprimir recibo
+  const processSale = async (sale: Sale) => {
     setProcessingPayment(true);
-
     try {
-      // Generate invoice number
-      const invoiceNumber = `INV-${Date.now()}`;
-
-      const sale: Sale = {
-        id: Date.now().toString(),
-        storeId: currentStore.id,
-        employeeId: user.id,
-        items: cart,
-        subtotal,
-        discount,
-        shippingCost,
-        total: finalTotal,
-        netTotal,
-        paymentMethod: selectedPaymentMethod.name,
-        paymentMethodDiscount: selectedPaymentMethod.discountPercentage,
-        date: new Date(),
-        invoiceNumber,
-        // NUEVO: Asignar cliente a la venta (si se seleccionó)
-        customerId: selectedCustomerId || undefined
-      };
-
       addSale(sale);
-
-      // Clear cart and close modal
       clearCart();
       setShowPaymentModal(false);
-
-      alert(`Venta procesada exitosamente!\nFactura: ${invoiceNumber}\nTotal: ${formatCurrency(finalTotal)}`);
+      setShowReceiptModal(false);
+      alert(`Venta procesada exitosamente!\nFactura: ${sale.invoiceNumber}\nTotal: ${formatCurrency(sale.total)}`);
     } catch (error) {
       alert('Error al procesar la venta');
     } finally {
       setProcessingPayment(false);
     }
   };
+
+  // Modal recibo/imprimir
+  const handleConfirmPayment = () => {
+    if (!amountReceived || Number(amountReceived) < finalTotal) {
+      alert('El monto recibido debe ser igual o mayor al total.');
+      return;
+    }
+    // Prepara datos para recibo
+    const sale: Sale = {
+      id: Date.now().toString(),
+      storeId: currentStore.id,
+      employeeId: user.id,
+      items: cart,
+      subtotal,
+      discount,
+      shippingCost,
+      total: finalTotal,
+      netTotal,
+      paymentMethod: selectedPaymentMethod.name,
+      paymentMethodDiscount: selectedPaymentMethod.discountPercentage,
+      date: new Date(),
+      invoiceNumber,
+      customerId: selectedCustomerId || undefined
+    };
+    setLastSaleData(sale);
+    setShowReceiptModal(true);
+  };
+
+  const handlePrintReceipt = () => {
+    window.print();
+    // Espera a que el usuario imprima antes de registrar venta
+    if (lastSaleData) processSale(lastSaleData);
+  };
+
+  // Estilos de impresión para recibo térmico
+  React.useEffect(() => {
+    const style = document.createElement('style');
+    style.innerHTML = `
+      @media print {
+        body * { visibility: hidden !important; }
+        #receipt, #receipt * { visibility: visible !important; }
+        #receipt { position: absolute; left: 0; top: 0; width: 58mm !important; font-size: 11px; line-height: 1.2; background: white; }
+      }
+    `;
+    document.head.appendChild(style);
+    return () => { document.head.removeChild(style); };
+  }, []);
 
   const ProductCard = ({ product }: { product: Product }) => (
     <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
@@ -191,8 +209,6 @@ export function POS() {
       <div className="flex-1 p-6 overflow-auto">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Punto de Venta</h1>
-          
-          {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
@@ -204,14 +220,11 @@ export function POS() {
             />
           </div>
         </div>
-
-        {/* Products Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredProducts.map(product => (
             <ProductCard key={product.id} product={product} />
           ))}
         </div>
-
         {filteredProducts.length === 0 && (
           <div className="text-center py-12">
             <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
@@ -222,7 +235,6 @@ export function POS() {
 
       {/* Cart Section */}
       <div className="w-96 bg-white border-l border-gray-200 flex flex-col">
-        {/* Cart Header */}
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold text-gray-900">Carrito</h2>
@@ -234,8 +246,6 @@ export function POS() {
             </div>
           </div>
         </div>
-
-        {/* Cart Items */}
         <div className="flex-1 overflow-auto p-6">
           {cart.length === 0 ? (
             <div className="text-center py-12">
@@ -257,7 +267,6 @@ export function POS() {
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
-                    
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
                         <button
@@ -290,7 +299,6 @@ export function POS() {
         {/* Cart Summary */}
         {cart.length > 0 && (
           <div className="border-t border-gray-200 p-6 space-y-4">
-            {/* NUEVO: Selector de cliente */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
               <select
@@ -304,8 +312,6 @@ export function POS() {
                 ))}
               </select>
             </div>
-
-            {/* Discount */}
             <div className="flex items-center space-x-2">
               <input
                 type="number"
@@ -316,8 +322,6 @@ export function POS() {
               />
               <span className="text-sm text-gray-500">COP</span>
             </div>
-
-            {/* Shipping */}
             <div className="flex items-center space-x-2">
               <Truck className="w-5 h-5 text-gray-400" />
               <input
@@ -329,8 +333,6 @@ export function POS() {
               />
               <span className="text-sm text-gray-500">COP</span>
             </div>
-
-            {/* Totals */}
             <div className="space-y-2 pt-4 border-t border-gray-200">
               <div className="flex justify-between text-sm">
                 <span>Subtotal:</span>
@@ -353,8 +355,6 @@ export function POS() {
                 <span>{formatCurrency(finalTotal)}</span>
               </div>
             </div>
-
-            {/* Actions */}
             <div className="space-y-2">
               <button
                 onClick={() => setShowPaymentModal(true)}
@@ -386,9 +386,7 @@ export function POS() {
                 <X className="w-6 h-6" />
               </button>
             </div>
-
             <div className="space-y-4">
-              {/* Payment Method Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Método de Pago
@@ -408,8 +406,17 @@ export function POS() {
                   ))}
                 </select>
               </div>
-
-              {/* Payment Summary */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Monto recibido</label>
+                <input
+                  type="number"
+                  value={amountReceived}
+                  onChange={e => setAmountReceived(Number(e.target.value))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  min={finalTotal}
+                  placeholder="¿Cuánto paga el cliente?"
+                />
+              </div>
               <div className="bg-gray-50 rounded-lg p-4 space-y-2">
                 <div className="flex justify-between text-sm">
                   <span>Total a cobrar al cliente:</span>
@@ -427,9 +434,13 @@ export function POS() {
                     </div>
                   </>
                 )}
+                {(amountReceived !== '' && Number(amountReceived) >= finalTotal) && (
+                  <div className="flex justify-between text-sm text-green-700 pt-2 border-t border-gray-200">
+                    <span>Cambio a devolver:</span>
+                    <span>{formatCurrency(Number(amountReceived) - finalTotal)}</span>
+                  </div>
+                )}
               </div>
-
-              {/* Actions */}
               <div className="flex space-x-3">
                 <button
                   onClick={() => setShowPaymentModal(false)}
@@ -438,14 +449,46 @@ export function POS() {
                   Cancelar
                 </button>
                 <button
-                  onClick={processSale}
-                  disabled={processingPayment}
+                  onClick={handleConfirmPayment}
+                  disabled={processingPayment || amountReceived === '' || Number(amountReceived) < finalTotal}
                   className="flex-1 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors font-medium"
                 >
-                  {processingPayment ? 'Procesando...' : 'Confirmar Pago'}
+                  Confirmar Pago
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Receipt & Print Modal */}
+      {showReceiptModal && lastSaleData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-[320px] p-4 text-sm font-mono" id="receipt">
+            <div className="text-center font-bold mb-2">*** RECIBO DE VENTA ***</div>
+            <div>Fecha: {new Date(lastSaleData.date).toLocaleString()}</div>
+            <div>Factura: {lastSaleData.invoiceNumber}</div>
+            <div>Empleado: {user?.username}</div>
+            <div>Cliente: {lastSaleData.customerId ? storeCustomers.find(c => c.id === lastSaleData.customerId)?.name : 'Venta rápida'}</div>
+            <hr className="my-2" />
+            {lastSaleData.items.map(item => (
+              <div key={item.productId} className="flex justify-between">
+                <span>{item.productName} x{item.quantity}</span>
+                <span>{formatCurrency(item.total)}</span>
+              </div>
+            ))}
+            <hr className="my-2" />
+            <div className="flex justify-between"><span>Total:</span><span>{formatCurrency(lastSaleData.total)}</span></div>
+            <div className="flex justify-between"><span>Pagó:</span><span>{formatCurrency(Number(amountReceived))}</span></div>
+            <div className="flex justify-between"><span>Cambio:</span><span>{formatCurrency(Number(amountReceived) - lastSaleData.total)}</span></div>
+            <hr className="my-2" />
+            <div className="text-center">¡Gracias por su compra!</div>
+            <button
+              onClick={handlePrintReceipt}
+              className="w-full bg-blue-600 text-white py-2 mt-4 rounded-lg hover:bg-blue-700"
+            >
+              Imprimir recibo
+            </button>
           </div>
         </div>
       )}
