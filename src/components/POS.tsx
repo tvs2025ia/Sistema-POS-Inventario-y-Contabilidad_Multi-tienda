@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 
 export function POS() {
-  const { products, paymentMethods, addSale } = useData();
+  const { products, paymentMethods, addSale, customers } = useData();
   const { currentStore } = useStore();
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
@@ -30,7 +30,11 @@ export function POS() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
 
+  // NUEVO: Estado para cliente seleccionado
+  const [selectedCustomerId, setSelectedCustomerId] = useState('');
+
   const storeProducts = products.filter(p => p.storeId === currentStore?.id);
+  const storeCustomers = customers ? customers.filter(c => c.storeId === currentStore?.id) : [];
   const filteredProducts = storeProducts.filter(product =>
     product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -106,6 +110,7 @@ export function POS() {
     setCart([]);
     setDiscount(0);
     setShippingCost(0);
+    setSelectedCustomerId('');
   };
 
   const processSale = async () => {
@@ -130,7 +135,9 @@ export function POS() {
         paymentMethod: selectedPaymentMethod.name,
         paymentMethodDiscount: selectedPaymentMethod.discountPercentage,
         date: new Date(),
-        invoiceNumber
+        invoiceNumber,
+        // NUEVO: Asignar cliente a la venta (si se seleccionó)
+        customerId: selectedCustomerId || undefined
       };
 
       addSale(sale);
@@ -139,7 +146,6 @@ export function POS() {
       clearCart();
       setShowPaymentModal(false);
 
-      // Show success message (in a real app, you might want to print the invoice here)
       alert(`Venta procesada exitosamente!\nFactura: ${invoiceNumber}\nTotal: ${formatCurrency(finalTotal)}`);
     } catch (error) {
       alert('Error al procesar la venta');
@@ -284,6 +290,21 @@ export function POS() {
         {/* Cart Summary */}
         {cart.length > 0 && (
           <div className="border-t border-gray-200 p-6 space-y-4">
+            {/* NUEVO: Selector de cliente */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
+              <select
+                value={selectedCustomerId}
+                onChange={(e) => setSelectedCustomerId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              >
+                <option value="">Venta sin cliente</option>
+                {storeCustomers.map(customer => (
+                  <option key={customer.id} value={customer.id}>{customer.name}</option>
+                ))}
+              </select>
+            </div>
+
             {/* Discount */}
             <div className="flex items-center space-x-2">
               <input
