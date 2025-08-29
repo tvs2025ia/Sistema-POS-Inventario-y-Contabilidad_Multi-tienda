@@ -27,8 +27,9 @@ interface DataContextType {
   addSupplier: (supplier: Supplier) => void;
   updateSupplier: (supplier: Supplier) => void;
   openCashRegister: (register: CashRegister) => void;
-  closeCashRegister: (registerId: string, closingAmount: number) => void;
+  closeCashRegister: (registerId: string, closingAmount: number, expensesTurno?: any[]) => void;
   addCashMovement: (movement: CashMovement) => void;
+  formatCurrency: (amount: number) => string;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -312,23 +313,35 @@ export function DataProvider({ children }: DataProviderProps) {
   };
 
   const closeCashRegister = (registerId: string, closingAmount: number, expensesTurno?: any[]) => {
-    setCashRegisters(prev => prev.map(r => 
-      r.id === registerId 
-        ? { 
-            ...r, 
-            closingAmount, 
-            closedAt: new Date(), 
-            status: 'closed' as const,
-            expectedAmount: r.openingAmount + cashMovements
-            difference,
-            expensesTurno: expensesTurno || []
-              .reduce((sum, m) => sum + m.amount, 0),
-            difference: closingAmount - (r.openingAmount + cashMovements
-              .filter(m => m.referenceId === registerId || (m.storeId === r.storeId && m.date >= r.openedAt))
-              .reduce((sum, m) => sum + m.amount, 0))
-          }
-        : r
-    ));
+    setCashRegisters(prev => prev.map(r => {
+      if (r.id === registerId) {
+        // Calcular movimientos de efectivo para este turno
+        const cashMovementsForTurn = cashMovements
+          .filter(m => m.referenceId === registerId || (m.storeId === r.storeId && m.date >= r.openedAt))
+          .reduce((sum, m) => sum + m.amount, 0);
+        
+        // Calcular gastos del turno
+        const expensesTurnoTotal = (expensesTurno || [])
+          .reduce((sum, m) => sum + m.amount, 0);
+        
+        // Calcular el monto esperado
+        const expectedAmount = r.openingAmount + cashMovementsForTurn - expensesTurnoTotal;
+        
+        // Calcular la diferencia
+        const difference = closingAmount - expectedAmount;
+        
+        return { 
+          ...r, 
+          closingAmount, 
+          closedAt: new Date(), 
+          status: 'closed' as const,
+          expectedAmount,
+          difference,
+          expensesTurno: expensesTurnoTotal
+        };
+      }
+      return r;
+    }));
 
     // Add cash movement for closing
     const register = cashRegisters.find(r => r.id === registerId);
@@ -339,7 +352,7 @@ export function DataProvider({ children }: DataProviderProps) {
         employeeId: register.employeeId,
         type: 'closing',
         amount: 0, // Closing doesn't add/remove money, just records the count
-        description: `Cierre de caja - Conteo: ${closingAmount}`,
+        description: `Cierre de caja - Conteo: ${formatCurrency(closingAmount)}`,
         date: new Date(),
         referenceId: registerId
       };
