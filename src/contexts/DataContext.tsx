@@ -199,6 +199,7 @@ export function DataProvider({ children }: DataProviderProps) {
   const [cashRegisters, setCashRegisters] = useState<CashRegister[]>([]);
   const [cashMovements, setCashMovements] = useState<CashMovement[]>([]);
 
+  // CRUD functions
   const addProduct = (product: Product) => {
     setProducts(prev => [...prev, product]);
   };
@@ -209,7 +210,6 @@ export function DataProvider({ children }: DataProviderProps) {
 
   const addSale = (sale: Sale) => {
     setSales(prev => [...prev, sale]);
-    
     // Update product stock
     sale.items.forEach(item => {
       setProducts(prev => prev.map(p => 
@@ -218,7 +218,6 @@ export function DataProvider({ children }: DataProviderProps) {
           : p
       ));
     });
-
     // Add cash movement
     const cashMovement: CashMovement = {
       id: Date.now().toString() + '_sale',
@@ -243,7 +242,6 @@ export function DataProvider({ children }: DataProviderProps) {
 
   const addExpense = (expense: Expense) => {
     setExpenses(prev => [...prev, expense]);
-
     // Add cash movement
     const cashMovement: CashMovement = {
       id: Date.now().toString() + '_expense',
@@ -268,7 +266,6 @@ export function DataProvider({ children }: DataProviderProps) {
 
   const addPurchase = (purchase: Purchase) => {
     setPurchases(prev => [...prev, purchase]);
-    
     // Update product stock
     purchase.items.forEach(item => {
       setProducts(prev => prev.map(p => 
@@ -297,7 +294,6 @@ export function DataProvider({ children }: DataProviderProps) {
 
   const openCashRegister = (register: CashRegister) => {
     setCashRegisters(prev => [...prev, register]);
-
     // Add cash movement for opening
     const cashMovement: CashMovement = {
       id: Date.now().toString() + '_opening',
@@ -312,32 +308,41 @@ export function DataProvider({ children }: DataProviderProps) {
     setCashMovements(prev => [...prev, cashMovement]);
   };
 
+  // ---- CORREGIDO: cierre de caja con cálculo correcto ----
   const closeCashRegister = (registerId: string, closingAmount: number, expensesTurno?: any[]) => {
     setCashRegisters(prev => prev.map(r => {
       if (r.id === registerId) {
-        // Calcular movimientos de efectivo para este turno
-        const cashMovementsForTurn = cashMovements
-          .filter(m => m.referenceId === registerId || (m.storeId === r.storeId && m.date >= r.openedAt))
-          .reduce((sum, m) => sum + m.amount, 0);
-        
-        // Calcular gastos del turno
-        const expensesTurnoTotal = (expensesTurno || [])
-          .reduce((sum, m) => sum + m.amount, 0);
-        
-        // Calcular el monto esperado
-        const expectedAmount = r.openingAmount + cashMovementsForTurn - expensesTurnoTotal;
-        
-        // Calcular la diferencia
+        const openedAt = new Date(r.openedAt);
+        const closedAt = new Date();
+
+        // Ventas del turno
+        const salesTurno = sales.filter(sale =>
+          sale.storeId === r.storeId &&
+          new Date(sale.date) >= openedAt &&
+          new Date(sale.date) <= closedAt
+        );
+        const salesTotal = salesTurno.reduce((sum, s) => sum + s.total, 0);
+
+        // Egresos del turno
+        const expensesTurnoArr = expenses.filter(exp =>
+          exp.storeId === r.storeId &&
+          new Date(exp.date) >= openedAt &&
+          new Date(exp.date) <= closedAt
+        );
+        const expensesTotal = expensesTurnoArr.reduce((sum, e) => sum + e.amount, 0);
+
+        // Calcular esperado y diferencia
+        const expectedAmount = r.openingAmount + salesTotal - expensesTotal;
         const difference = closingAmount - expectedAmount;
-        
-        return { 
-          ...r, 
-          closingAmount, 
-          closedAt: new Date(), 
+
+        return {
+          ...r,
+          closingAmount,
+          closedAt,
           status: 'closed' as const,
           expectedAmount,
           difference,
-          expensesTurno: expensesTurnoTotal
+          expensesTurno: expensesTurnoArr
         };
       }
       return r;
@@ -351,7 +356,7 @@ export function DataProvider({ children }: DataProviderProps) {
         storeId: register.storeId,
         employeeId: register.employeeId,
         type: 'closing',
-        amount: 0, // Closing doesn't add/remove money, just records the count
+        amount: 0,
         description: `Cierre de caja - Conteo: ${formatCurrency(closingAmount)}`,
         date: new Date(),
         referenceId: registerId
