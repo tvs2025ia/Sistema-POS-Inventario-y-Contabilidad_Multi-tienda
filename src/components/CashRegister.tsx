@@ -16,13 +16,17 @@ import {
 } from 'lucide-react';
 
 export function CashRegister() {
-  const { cashRegisters, cashMovements, sales, expenses, openCashRegister, closeCashRegister, addCashMovement } = useData();
+  const { cashRegisters, cashMovements, sales, expenses, openCashRegister, closeCashRegister, addCashMovement, users } = useData();
   const { currentStore } = useStore();
   const { user } = useAuth();
   const [showOpenModal, setShowOpenModal] = useState(false);
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [openingAmount, setOpeningAmount] = useState(0);
   const [closingAmount, setClosingAmount] = useState(0);
+
+  // NUEVO: filtro de fechas para historial
+  const [filterStartDate, setFilterStartDate] = useState('');
+  const [filterEndDate, setFilterEndDate] = useState('');
 
   const storeRegisters = cashRegisters.filter(r => r.storeId === currentStore?.id);
   const currentRegister = storeRegisters.find(r => r.status === 'open');
@@ -108,6 +112,21 @@ export function CashRegister() {
   const todaySalesTotal = todaySales.reduce((sum, s) => sum + s.total, 0);
   const todayExpensesTotal = todayExpenses.reduce((sum, e) => sum + e.amount, 0);
 
+  // --- NUEVO: filtrar historial por fechas ---
+  const filteredRegisters = storeRegisters.filter(register => {
+    const openedAt = new Date(register.openedAt);
+    const passesStart = !filterStartDate || openedAt >= new Date(filterStartDate);
+    const passesEnd = !filterEndDate || openedAt <= new Date(filterEndDate + 'T23:59:59');
+    return passesStart && passesEnd;
+  });
+
+  // --- NUEVO: obtener nombre de usuario por employeeId ---
+  const getEmployeeName = (employeeId: string) => {
+    if (!users) return 'Desconocido';
+    const employee = users.find(u => u.id === employeeId);
+    return employee ? employee.username : 'Desconocido';
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -154,7 +173,7 @@ export function CashRegister() {
             </div>
             <div>
               <p className="text-sm text-green-600">Empleado</p>
-              <p className="text-lg font-medium text-green-900">{user?.username}</p>
+              <p className="text-lg font-medium text-green-900">{getEmployeeName(currentRegister.employeeId)}</p>
             </div>
           </div>
           {/* Mostrar egresos del turno actual */}
@@ -232,7 +251,29 @@ export function CashRegister() {
         </div>
       </div>
 
-      {/* Recent Registers */}
+      {/* Filtros de fecha para historial */}
+      <div className="flex space-x-4 items-center mb-4">
+        <div>
+          <label className="block text-xs font-medium text-gray-500">Desde</label>
+          <input
+            type="date"
+            value={filterStartDate}
+            onChange={e => setFilterStartDate(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-500">Hasta</label>
+          <input
+            type="date"
+            value={filterEndDate}
+            onChange={e => setFilterEndDate(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg"
+          />
+        </div>
+      </div>
+
+      {/* Recent Registers - Historial de Cajas */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-6 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">Historial de Cajas</h3>
@@ -251,6 +292,9 @@ export function CashRegister() {
                   Cierre
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Usuario
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Esperado
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -265,7 +309,7 @@ export function CashRegister() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {storeRegisters.slice().reverse().map(register => (
+              {filteredRegisters.slice().reverse().map(register => (
                 <tr key={register.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -282,6 +326,9 @@ export function CashRegister() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {register.closedAt ? new Date(register.closedAt).toLocaleString() : '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {getEmployeeName(register.employeeId)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {register.expectedAmount ? formatCurrency(register.expectedAmount) : '-'}
@@ -312,10 +359,10 @@ export function CashRegister() {
           </table>
         </div>
 
-        {storeRegisters.length === 0 && (
+        {filteredRegisters.length === 0 && (
           <div className="text-center py-12">
             <Calculator className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 text-lg">No hay registros de caja</p>
+            <p className="text-gray-500 text-lg">No hay registros de caja en este rango de fechas</p>
           </div>
         )}
       </div>
