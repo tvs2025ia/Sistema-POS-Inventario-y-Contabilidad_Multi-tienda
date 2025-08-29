@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
+import { FinancialReports } from './FinancialReports';
 import { User } from '../types';
 import { 
   Settings, 
@@ -12,7 +13,9 @@ import {
   X,
   Eye,
   EyeOff,
-  UserPlus
+  UserPlus,
+  FileText,
+  BarChart3
 } from 'lucide-react';
 
 export function Admin() {
@@ -21,6 +24,7 @@ export function Admin() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [activeTab, setActiveTab] = useState<'users' | 'reports'>('users');
 
   // Only admins can access this component
   if (currentUser?.role !== 'admin') {
@@ -33,6 +37,11 @@ export function Admin() {
       </div>
     );
   }
+
+  const tabs = [
+    { id: 'users', name: 'Gestión de Usuarios', icon: Users },
+    { id: 'reports', name: 'Reportes Financieros', icon: FileText }
+  ];
 
   const UserModal = ({ user, onClose, onSave }: {
     user?: User;
@@ -221,146 +230,177 @@ export function Admin() {
           <h1 className="text-2xl font-bold text-gray-900">Panel de Administración</h1>
           <p className="text-gray-600 mt-1">Gestión de usuarios y configuración del sistema</p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
-        >
-          <UserPlus className="w-5 h-5" />
-          <span>Nuevo Usuario</span>
-        </button>
+        {activeTab === 'users' && (
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+          >
+            <UserPlus className="w-5 h-5" />
+            <span>Nuevo Usuario</span>
+          </button>
+        )}
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-          <div className="flex items-center">
-            <Users className="w-8 h-8 text-blue-600 mr-3" />
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Usuarios</p>
-              <p className="text-2xl font-bold text-gray-900">{users.length}</p>
+      {/* Tabs */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+        <div className="border-b border-gray-200">
+          <nav className="flex space-x-8 px-6">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as 'users' | 'reports')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
+                  activeTab === tab.id
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <tab.icon className="w-5 h-5" />
+                <span>{tab.name}</span>
+              </button>
+            ))}
+          </nav>
+        </div>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'users' && (
+        <>
+          {/* Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+              <div className="flex items-center">
+                <Users className="w-8 h-8 text-blue-600 mr-3" />
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total Usuarios</p>
+                  <p className="text-2xl font-bold text-gray-900">{users.length}</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+              <div className="flex items-center">
+                <ShieldCheck className="w-8 h-8 text-purple-600 mr-3" />
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Administradores</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {users.filter(u => u.role === 'admin').length}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+              <div className="flex items-center">
+                <Shield className="w-8 h-8 text-green-600 mr-3" />
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Usuarios Activos</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {users.filter(u => u.isActive).length}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-        
-        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-          <div className="flex items-center">
-            <ShieldCheck className="w-8 h-8 text-purple-600 mr-3" />
-            <div>
-              <p className="text-sm font-medium text-gray-600">Administradores</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {users.filter(u => u.role === 'admin').length}
-              </p>
+
+          {/* Users Table */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Usuarios del Sistema</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Usuario
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Rol
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Tienda
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Estado
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Creado
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Acciones
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {users.map(user => (
+                    <tr key={user.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">{user.username}</div>
+                          <div className="text-sm text-gray-500">{user.email}</div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {getRoleBadge(user.role)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {getStoreName(user.storeId)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          user.isActive 
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {user.isActive ? 'Activo' : 'Inactivo'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {new Date(user.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button
+                          onClick={() => setEditingUser(user)}
+                          className="text-blue-600 hover:text-blue-900 mr-3"
+                          disabled={user.id === currentUser?.id}
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
-        </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-          <div className="flex items-center">
-            <Shield className="w-8 h-8 text-green-600 mr-3" />
-            <div>
-              <p className="text-sm font-medium text-gray-600">Usuarios Activos</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {users.filter(u => u.isActive).length}
-              </p>
+          {/* System Info */}
+          <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Información del Sistema</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-gray-500">Versión del Sistema</p>
+                <p className="font-medium text-gray-900">POS Multi-tienda v1.0</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Última Actualización</p>
+                <p className="font-medium text-gray-900">{new Date().toLocaleDateString()}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Tiendas Configuradas</p>
+                <p className="font-medium text-gray-900">3 tiendas activas</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Base de Datos</p>
+                <p className="font-medium text-gray-900">Local Storage (Demo)</p>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
 
-      {/* Users Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-6 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Usuarios del Sistema</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Usuario
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Rol
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Tienda
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Estado
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Creado
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Acciones
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {users.map(user => (
-                <tr key={user.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">{user.username}</div>
-                      <div className="text-sm text-gray-500">{user.email}</div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getRoleBadge(user.role)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {getStoreName(user.storeId)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      user.isActive 
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-red-100 text-red-800'
-                    }`}>
-                      {user.isActive ? 'Activo' : 'Inactivo'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {new Date(user.createdAt).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button
-                      onClick={() => setEditingUser(user)}
-                      className="text-blue-600 hover:text-blue-900 mr-3"
-                      disabled={user.id === currentUser?.id}
-                    >
-                      <Edit3 className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* System Info */}
-      <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Información del Sistema</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <p className="text-sm text-gray-500">Versión del Sistema</p>
-            <p className="font-medium text-gray-900">POS Multi-tienda v1.0</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Última Actualización</p>
-            <p className="font-medium text-gray-900">{new Date().toLocaleDateString()}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Tiendas Configuradas</p>
-            <p className="font-medium text-gray-900">3 tiendas activas</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Base de Datos</p>
-            <p className="font-medium text-gray-900">Local Storage (Demo)</p>
-          </div>
-        </div>
-      </div>
+      {activeTab === 'reports' && <FinancialReports />}
 
       {/* Modals */}
       {showAddModal && (

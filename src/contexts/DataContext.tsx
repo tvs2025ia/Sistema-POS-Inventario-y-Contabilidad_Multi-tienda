@@ -178,6 +178,14 @@ interface DataProviderProps {
 }
 
 export function DataProvider({ children }: DataProviderProps) {
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0
+    }).format(amount);
+  };
+
   const [products, setProducts] = useState<Product[]>(mockProducts);
   const [sales, setSales] = useState<Sale[]>([]);
   const [customers, setCustomers] = useState<Customer[]>(mockCustomers);
@@ -303,7 +311,7 @@ export function DataProvider({ children }: DataProviderProps) {
     setCashMovements(prev => [...prev, cashMovement]);
   };
 
-  const closeCashRegister = (registerId: string, closingAmount: number) => {
+  const closeCashRegister = (registerId: string, closingAmount: number, expensesTurno?: any[]) => {
     setCashRegisters(prev => prev.map(r => 
       r.id === registerId 
         ? { 
@@ -312,7 +320,8 @@ export function DataProvider({ children }: DataProviderProps) {
             closedAt: new Date(), 
             status: 'closed' as const,
             expectedAmount: r.openingAmount + cashMovements
-              .filter(m => m.referenceId === registerId || (m.storeId === r.storeId && m.date >= r.openedAt))
+            difference,
+            expensesTurno: expensesTurno || []
               .reduce((sum, m) => sum + m.amount, 0),
             difference: closingAmount - (r.openingAmount + cashMovements
               .filter(m => m.referenceId === registerId || (m.storeId === r.storeId && m.date >= r.openedAt))
@@ -369,7 +378,8 @@ export function DataProvider({ children }: DataProviderProps) {
     updateSupplier,
     openCashRegister,
     closeCashRegister,
-    addCashMovement
+    addCashMovement,
+    formatCurrency
   };
 
   return (

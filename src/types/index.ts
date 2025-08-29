@@ -124,6 +124,7 @@ export interface CashRegister {
   closingAmount?: number;
   expectedAmount?: number;
   difference?: number;
+  expensesTurno?: any[];
   openedAt: Date;
   closedAt?: Date;
   status: 'open' | 'closed';
