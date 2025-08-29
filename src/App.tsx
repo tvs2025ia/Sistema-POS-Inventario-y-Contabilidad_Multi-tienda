@@ -15,6 +15,7 @@ import { Expenses } from './components/Expenses';
 import { CashRegister } from './components/CashRegister';
 import { Statistics } from './components/Statistics';
 import { Admin } from './components/Admin';
+import { FinancialReports } from './components/FinancialReports';
 
 function MainApp() {
   const { user, isLoading } = useAuth();
@@ -56,6 +57,8 @@ function MainApp() {
         return <Statistics />;
       case 'admin':
         return <Admin />;
+      case 'financial':
+        return <FinancialReports />;
       default:
         return <Dashboard onPageChange={setCurrentPage} />;
     }
